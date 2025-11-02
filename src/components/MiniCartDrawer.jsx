@@ -1,5 +1,5 @@
 // src/components/MiniCartDrawer.jsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { useCart } from "../context/CartContext";
 import API from "../lib/api";
 import { toast } from "react-toastify";
@@ -10,16 +10,12 @@ function Currency({ v }) {
 
 /**
  * MiniCartDrawer
- * - manages drawer `open` locally
- * - reads cart data from useCart()
- * - improves accessibility: moves focus into drawer when opened, returns focus to trigger when closed,
- *   closes on Escape, uses an inline placeholder image (no external network).
+ * - drawer is implemented with an aside that is a column flex container.
+ * - main content (list) is flex-1 and scrollable; footer stays fixed at bottom.
  */
 export default function MiniCartDrawer() {
-  // local UI state for drawer open/close
   const [open, setOpen] = useState(false);
 
-  // cart API from context
   const {
     items = [],
     removeItem = () => {},
@@ -32,41 +28,7 @@ export default function MiniCartDrawer() {
   const [loadingIds, setLoadingIds] = useState([]);
   const [checkingOut, setCheckingOut] = useState(false);
 
-  // refs for focus management
-  const triggerRef = useRef(null);
-  const drawerRef = useRef(null);
-
-  // inline SVG placeholder (avoids external network dependency)
-  const placeholder =
-    "data:image/svg+xml;utf8," +
-    encodeURIComponent(
-      `<svg xmlns='http://www.w3.org/2000/svg' width='160' height='112'><rect width='100%' height='100%' fill='%23f3f4f6'/><text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' fill='%239ca3af' font-family='Arial, Helvetica, sans-serif' font-size='12'>No image</text></svg>`
-    );
-
   const toggle = () => setOpen((s) => !s);
-
-  // move focus into drawer when opening, return to trigger when closing
-  useEffect(() => {
-    if (open) {
-      // small delay to ensure element is rendered
-      setTimeout(() => {
-        // focus the close button if available, else the drawer container
-        const closeBtn = drawerRef.current?.querySelector("button[aria-label='Close cart']");
-        if (closeBtn) closeBtn.focus();
-        else drawerRef.current?.focus();
-      }, 50);
-
-      // add escape key handler
-      const onKey = (e) => {
-        if (e.key === "Escape") setOpen(false);
-      };
-      document.addEventListener("keydown", onKey);
-      return () => document.removeEventListener("keydown", onKey);
-    } else {
-      // return focus to trigger button
-      setTimeout(() => triggerRef.current?.focus?.(), 50);
-    }
-  }, [open]);
 
   const doCheckout = async () => {
     if (!items.length) {
@@ -79,7 +41,6 @@ export default function MiniCartDrawer() {
     const successes = [];
     const failures = [];
 
-    // Attempt purchase for each item sequentially
     for (const it of items) {
       const id = it._id || it.id;
       setLoadingIds((s) => [...s, id]);
@@ -94,7 +55,6 @@ export default function MiniCartDrawer() {
       }
     }
 
-    // Remove successful items from cart (local context)
     if (successes.length) {
       successes.forEach((s) => {
         const id = s._id || s.id;
@@ -110,7 +70,6 @@ export default function MiniCartDrawer() {
 
     setCheckingOut(false);
     if (!failures.length) {
-      // close drawer when everything succeeded
       setOpen(false);
     }
   };
@@ -120,16 +79,12 @@ export default function MiniCartDrawer() {
       {/* floating cart button */}
       <div className="fixed right-4 bottom-4 z-40">
         <button
-          ref={triggerRef}
           onClick={toggle}
-          className="flex items-center gap-2 px-4 py-2 rounded-full bg-brand-500 text-white shadow-lg"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-controls="mini-cart-drawer"
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-pink-500 text-white shadow-lg"
           aria-label="Open cart"
           title="Open cart"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 21a1 1 0 11-2 0 1 1 0 012 0zm-8 0a1 1 0 11-2 0 1 1 0 012 0z" />
           </svg>
@@ -140,26 +95,21 @@ export default function MiniCartDrawer() {
       {/* drawer container */}
       <div
         className={`fixed inset-0 z-50 ${open ? "pointer-events-auto" : "pointer-events-none"}`}
-        // do not set aria-hidden on the wrapper—drawer itself is role=dialog/aria-modal
+        aria-hidden={!open}
       >
         {/* backdrop */}
         <div
           onClick={() => setOpen(false)}
-          aria-hidden="true"
-          className={`absolute inset-0 bg-black/40 transition-opacity ${open ? "opacity-100" : "opacity-0"}`}
+          className={`absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity ${open ? "opacity-100" : "opacity-0"}`}
         />
 
-        {/* panel */}
+        {/* panel (flex column so footer remains visible) */}
         <aside
-          id="mini-cart-drawer"
-          ref={drawerRef}
           role="dialog"
           aria-modal="true"
-          aria-label="Your cart"
-          tabIndex={-1}
           className={`absolute right-0 top-0 h-full w-full sm:w-[420px] bg-white shadow-xl transform transition-transform ${
             open ? "translate-x-0" : "translate-x-full"
-          }`}
+          } flex flex-col`}
         >
           <div className="p-4 flex items-center justify-between border-b">
             <h3 className="text-lg font-semibold">Your Cart</h3>
@@ -167,17 +117,12 @@ export default function MiniCartDrawer() {
               <div className="text-sm text-gray-500">
                 <Currency v={subtotal} />
               </div>
-              <button
-                aria-label="Close cart"
-                onClick={() => setOpen(false)}
-                className="px-2 py-1 text-gray-600 rounded hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-pink-200"
-              >
-                Close
-              </button>
+              <button onClick={() => setOpen(false)} className="px-2 py-1 text-gray-600 border rounded">Close</button>
             </div>
           </div>
 
-          <div className="p-4 h-[calc(100%-130px)] overflow-y-auto">
+          {/* content: scrollable */}
+          <div className="p-4 overflow-y-auto flex-1">
             {items.length === 0 ? (
               <div className="text-gray-500">Your cart is empty. Add sweets to get started.</div>
             ) : (
@@ -186,12 +131,7 @@ export default function MiniCartDrawer() {
                 const processing = loadingIds.includes(id);
                 return (
                   <div key={id || Math.random()} className="flex items-center gap-3 border-b py-3">
-                    <img
-                      src={it.image || placeholder}
-                      alt={it.name}
-                      className="w-16 h-12 object-cover rounded"
-                      onError={(e) => (e.currentTarget.src = placeholder)}
-                    />
+                    <img src={it.image || "https://via.placeholder.com/80"} alt={it.name} className="w-16 h-12 object-cover rounded" />
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <div>
@@ -205,7 +145,7 @@ export default function MiniCartDrawer() {
                         <button
                           onClick={() => updateQuantity(id, Math.max(1, (it.quantity || 1) - 1))}
                           className="px-2 py-1 border rounded"
-                          aria-label={`Decrease quantity for ${it.name}`}
+                          aria-label={`Decrease quantity of ${it.name}`}
                         >
                           −
                         </button>
@@ -220,14 +160,12 @@ export default function MiniCartDrawer() {
                         <button
                           onClick={() => updateQuantity(id, (it.quantity || 1) + 1)}
                           className="px-2 py-1 border rounded"
-                          aria-label={`Increase quantity for ${it.name}`}
+                          aria-label={`Increase quantity of ${it.name}`}
                         >
                           +
                         </button>
 
-                        <button onClick={() => removeItem(id)} className="ml-auto text-sm text-red-600" aria-label={`Remove ${it.name}`}>
-                          Remove
-                        </button>
+                        <button onClick={() => removeItem(id)} className="ml-auto text-sm text-red-600">Remove</button>
                       </div>
 
                       {processing && <div className="text-xs text-gray-500 mt-1">Processing...</div>}
@@ -238,12 +176,11 @@ export default function MiniCartDrawer() {
             )}
           </div>
 
+          {/* footer: stays visible */}
           <div className="p-4 border-t">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm text-gray-600">Subtotal</div>
-              <div className="text-lg font-semibold">
-                <Currency v={subtotal} />
-              </div>
+              <div className="text-lg font-semibold"><Currency v={subtotal} /></div>
             </div>
 
             <div className="flex gap-2">
@@ -259,7 +196,7 @@ export default function MiniCartDrawer() {
               <button
                 onClick={doCheckout}
                 disabled={checkingOut}
-                className={`w-full px-4 py-2 rounded text-white ${checkingOut ? "bg-gray-400" : "bg-brand-500 hover:bg-brand-600"}`}
+                className={`w-full px-4 py-2 rounded text-white ${checkingOut ? "bg-gray-400" : "bg-pink-500 hover:bg-pink-600"}`}
               >
                 {checkingOut ? "Processing..." : "Checkout"}
               </button>

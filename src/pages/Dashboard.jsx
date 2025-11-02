@@ -9,51 +9,70 @@ import useDebounce from "../hooks/useDebounce";
 import useRecommendations from "../hooks/useRecommendations";
 import { useCart } from "../context/CartContext";
 import { pushView, pushPurchase } from "../lib/localSignals";
+import { triggerLoginFocus } from "../lib/globalSignals";
 
 export default function Dashboard({ user }) {
   const [sweets, setSweets] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // UI filters
+  // filters
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const debouncedQuery = useDebounce(query, 400);
 
+  // modals
   const [modalOpen, setModalOpen] = useState(false);
   const [selected, setSelected] = useState(null);
   const [processingId, setProcessingId] = useState(null);
 
+  // personalization
   const { items: cartItems } = useCart();
   const recs = useRecommendations({ cartItems, limit: 6 });
 
+  // Track if user is actively searching or filtering
+  const searchActive = Boolean(debouncedQuery || category || minPrice || maxPrice);
+
+  // 🧁 Load all sweets initially
   useEffect(() => {
     fetchSweets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 🍫 Fetch sweets
   async function fetchSweets(params = {}) {
     setLoading(true);
     try {
       const res = await API.get("/sweets/search", { params });
       setSweets(res.data || []);
     } catch (err) {
-      console.error("Fetch sweets error:", err?.response?.data || err?.message);
+      console.error("❌ Fetch sweets error:", err?.response?.data || err?.message);
       if (!err?.response) toast.error("Failed to load sweets");
     } finally {
       setLoading(false);
     }
   }
 
+  // 🎯 Auto-refetch when filters/search change (after debounce)
   useEffect(() => {
-    const params = {};
-    if (debouncedQuery) params.q = debouncedQuery;
-    if (category) params.category = category;
-    if (minPrice) params.minPrice = minPrice;
-    if (maxPrice) params.maxPrice = maxPrice;
-    fetchSweets(params);
+    // If filters/search are active, fetch filtered results
+    if (searchActive) {
+      const params = {};
+      if (debouncedQuery) params.q = debouncedQuery;
+      if (category) params.category = category;
+      if (minPrice) params.minPrice = minPrice;
+      if (maxPrice) params.maxPrice = maxPrice;
+      fetchSweets(params);
+      return;
+    }
+
+    // If no search/filters active (user cleared filters) — make sure to show all sweets
+    fetchSweets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery, category, minPrice, maxPrice]);
 
+  // unique categories for filter buttons
   const categories = useMemo(() => {
     const set = new Set();
     sweets.forEach((s) => s.category && set.add(s.category));
@@ -71,7 +90,9 @@ export default function Dashboard({ user }) {
   const confirmBuy = async (qty) => {
     if (!selected) return;
     if (!user) {
-      toast.info("Please login to purchase");
+      toast.info("Please login to continue");
+      triggerLoginFocus(); // 🔥 make navbar highlight login
+      window.scrollTo({ top: 0, behavior: "smooth" }); // 👆 Scroll up for mobile
       setModalOpen(false);
       return;
     }
@@ -97,21 +118,8 @@ export default function Dashboard({ user }) {
       await fetchSweets();
     } catch (err) {
       const message = err?.response?.data?.message || err?.message || "Purchase failed";
-      const msgLower = String(message).toLowerCase();
-
       toast.dismiss();
-
-      if (msgLower.includes("insufficient") || msgLower.includes("only") || msgLower.includes("available")) {
-        const matches = msgLower.match(/only\s+(\d+)\s+/);
-        const onlyNum = matches ? Number(matches[1]) : null;
-        if (onlyNum === 0 || msgLower.includes("out of stock") || msgLower.includes("no stock")) {
-          toast.error(message);
-        } else {
-          toast.warning(message);
-        }
-      } else {
-        toast.error(message);
-      }
+      toast.error(message);
     } finally {
       setProcessingId(null);
       setSelected(null);
@@ -123,7 +131,7 @@ export default function Dashboard({ user }) {
     setCategory("");
     setMinPrice("");
     setMaxPrice("");
-    fetchSweets();
+    fetchSweets(); // show all sweets again
   };
 
   return (
@@ -154,27 +162,6 @@ export default function Dashboard({ user }) {
         </div>
       </section>
 
-      {/* Recommended */}
-      {recs && recs.length > 0 && (
-        <section className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-semibold">Recommended for you</h2>
-            <button
-              onClick={() => fetchSweets()}
-              className="text-sm text-gray-600 hover:text-gray-800"
-            >
-              Refresh
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recs.map((r) => (
-              <SweetCard key={r._id} item={r} onOpenQuantity={openBuy} isProcessing={processingId === r._id} />
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* Filters */}
       <section className="mb-6 flex flex-col md:flex-row gap-3 items-center">
         <div className="flex gap-2 flex-wrap">
@@ -184,12 +171,9 @@ export default function Dashboard({ user }) {
               <button
                 key={c}
                 onClick={() => setCategory(c === "All" ? "" : c)}
-                className={
-                  "px-3 py-1 rounded-full border transition-all " +
-                  (active
-                    ? "bg-pink-400 text-white border-pink-400 shadow-sm"
-                    : "bg-white text-gray-700 border-gray-200 hover:bg-pink-50")
-                }
+                className={`px-3 py-1 rounded-full border transition-all ${
+                  active ? "bg-pink-400 text-white border-pink-400 shadow-sm" : "bg-white text-gray-700 border-gray-200 hover:bg-pink-50"
+                }`}
               >
                 {c}
               </button>
@@ -212,13 +196,13 @@ export default function Dashboard({ user }) {
             onChange={(e) => setMaxPrice(e.target.value)}
             className="px-3 py-2 border rounded w-24"
           />
-          <button onClick={resetFilters} className="px-3 py-2 border rounded text-sm">
+          <button onClick={resetFilters} className="px-3 py-2 border rounded text-sm hover:bg-pink-50">
             Reset
           </button>
         </div>
       </section>
 
-      {/* Grid */}
+      {/* Sweets Grid */}
       <section>
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -237,6 +221,23 @@ export default function Dashboard({ user }) {
         )}
       </section>
 
+      {/* Recommended */}
+      {!searchActive && recs && recs.length > 0 && (
+        <section className="mb-6 mt-10">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-semibold">Recommended for you</h2>
+            <button onClick={() => fetchSweets()} className="text-sm text-gray-600 hover:text-gray-800">Refresh</button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recs.map((r) => (
+              <SweetCard key={r._id} item={r} onOpenQuantity={openBuy} isProcessing={processingId === r._id} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Quantity Modal */}
       <QuantityModal
         open={modalOpen}
         onClose={() => {
@@ -248,12 +249,17 @@ export default function Dashboard({ user }) {
         defaultQty={1}
       />
 
-      {/* 🌸 Footer Section */}
+      {/* Footer */}
       <footer className="mt-10 border-t pt-6 pb-4 text-center text-gray-600 text-sm bg-gradient-to-r from-white to-pink-50 rounded-t-xl">
         <p className="font-medium text-pink-600">Sweetify 🍬 — Spreading Happiness, One Sweet at a Time</p>
         <div className="mt-2 flex flex-col sm:flex-row justify-center gap-3 text-gray-500 text-xs">
           <span>© {new Date().getFullYear()} Sweetify. All rights reserved.</span>
-          
+          <span>•</span>
+          <a href="/about" className="hover:underline">About</a>
+          <span>•</span>
+          <a href="/contact" className="hover:underline">Contact</a>
+          <span>•</span>
+          <a href="/privacy" className="hover:underline">Privacy</a>
         </div>
       </footer>
     </div>

@@ -2,6 +2,7 @@
 import React from "react";
 import { useCart } from "../context/CartContext";
 import { toast } from "react-toastify";
+import { triggerLoginFocus } from "../lib/globalSignals";
 
 export default function SweetCard({ item, onOpenQuantity, isProcessing }) {
   const { addItem } = useCart();
@@ -13,30 +14,31 @@ export default function SweetCard({ item, onOpenQuantity, isProcessing }) {
 
   const handleAddToCart = async (e) => {
     e.preventDefault();
+
+    // require login before adding to persistent cart
+    const token = localStorage.getItem("token");
+    if (!token) {
+      toast.info("Please login to add items to cart");
+      triggerLoginFocus();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
     if (outOfStock) {
-      // Immediate friendly message for user action; server would also reject — but this avoids duplicate server error toast
       toast.error(`${item.name} is out of stock`);
       return;
     }
 
     try {
-      // addItem is from CartContext — it may call backend. We catch server errors below.
       await addItem(item, 1);
-
-      // success toast (only shown here)
       toast.success(`Added 1 × ${item.name} to cart`);
-
-      // notify other UI pieces (navbar, counters) to update
       window.dispatchEvent(new Event("cart-updated"));
     } catch (err) {
       console.error("Add to cart failed:", err);
-
-      // If error.response exists the API interceptor already showed a toast for server errors.
-      // Show a fallback toast only for network errors (no server response).
       if (!err?.response) {
         toast.error("Couldn't add to cart. Network error — try again.");
       }
-      // otherwise rely on interceptor's toast (prevents duplicate toasts)
+      // server errors handled by API interceptor
     }
   };
 
@@ -76,9 +78,7 @@ export default function SweetCard({ item, onOpenQuantity, isProcessing }) {
       <div className="mt-4 flex items-center justify-between">
         <div>
           <div className="text-sm text-gray-500">Price</div>
-          <div className="font-semibold text-lg text-gray-800">
-            ₹{item.price}
-          </div>
+          <div className="font-semibold text-lg text-gray-800">₹{item.price}</div>
         </div>
 
         <div className="flex items-center gap-2">
