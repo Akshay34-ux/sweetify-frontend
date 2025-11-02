@@ -85,58 +85,25 @@ export default function CartProvider({ children }) {
 
   // server sync helpers ---------------------------------------------------
   // sync local -> server (merge). Expects user object with _id and token in localStorage
-  const syncToServer = async (user) => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token || !user) throw new Error("No auth token or user");
+  c// safe no-op
+// in src/context/CartContext.jsx
+const syncToServer = async (user) => {
+  const itemsPayload = items.map(it => ({
+    item: String(it._id || it.id), // ensure string id and correct key name 'item'
+    quantity: it.quantity || 1
+  }));
 
-      // Build payload: items -> { itemId, quantity }
-      const payloadItems = items.map((it) => ({ itemId: it._id, quantity: it.quantity || 1 }));
-      if (payloadItems.length === 0) {
-        // still attempt to fetch server cart and replace local (in case server had cart)
-        const res = await API.get("/cart");
-        if (res?.data?.cart?.items) {
-          // server objects have item populated maybe; normalize to front shape
-          const mapped = (res.data.cart.items || []).map((ci) => {
-            const itm = ci.item || {};
-            return {
-              _id: itm._id || ci.item,
-              name: itm.name,
-              price: itm.price,
-              image: itm.image,
-              category: itm.category,
-              quantity: ci.quantity || 1,
-            };
-          });
-          setState((s) => ({ items: mapped, meta: s.meta }));
-        }
-        return;
-      }
-
-      // POST to server to merge
-      await API.post("/cart", { items: payloadItems });
-      // After merging, get server cart and replace local to keep authoritative server state
-      const res = await API.get("/cart");
-      if (res?.data?.cart) {
-        const mapped = (res.data.cart.items || []).map((ci) => {
-          const itm = ci.item || {};
-          return {
-            _id: itm._id || ci.item,
-            name: itm.name,
-            price: itm.price,
-            image: itm.image,
-            category: itm.category,
-            quantity: ci.quantity || 1,
-          };
-        });
-        setState((s) => ({ items: mapped, meta: s.meta }));
-      }
-    } catch (err) {
-      // don't blow up login flow — return error for UI to decide
-      console.warn("Cart syncToServer failed:", err);
-      throw err;
-    }
-  };
+  try {
+    // POST to /api/cart/sync (or /api/cart) depending on your route
+    const res = await API.post("/cart/sync", { items: itemsPayload });
+    // optional: return res.data
+    return res.data;
+  } catch (err) {
+    // swallow so login doesn't fail — but propagate/return something useful
+    console.warn("Cart sync failed (frontend):", err?.response?.data || err?.message);
+    throw err; // or return { error: true } if you prefer not to throw
+  }
+};
 
   // pull server cart -> replace local (useful after login)
   const syncFromServer = async () => {
