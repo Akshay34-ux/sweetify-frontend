@@ -85,7 +85,7 @@ export default function CartProvider({ children }) {
 
   // server sync helpers ---------------------------------------------------
   // sync local -> server (merge). Expects user object with _id and token in localStorage
-  c// safe no-op
+  // safe no-op
 // in src/context/CartContext.jsx
 const syncToServer = async (user) => {
   const itemsPayload = items.map(it => ({
