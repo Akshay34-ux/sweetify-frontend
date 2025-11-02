@@ -254,12 +254,7 @@ export default function Dashboard({ user }) {
         <p className="font-medium text-pink-600">Sweetify 🍬 — Spreading Happiness, One Sweet at a Time</p>
         <div className="mt-2 flex flex-col sm:flex-row justify-center gap-3 text-gray-500 text-xs">
           <span>© {new Date().getFullYear()} Sweetify. All rights reserved.</span>
-          <span>•</span>
-          <a href="/about" className="hover:underline">About</a>
-          <span>•</span>
-          <a href="/contact" className="hover:underline">Contact</a>
-          <span>•</span>
-          <a href="/privacy" className="hover:underline">Privacy</a>
+            <span>Made with ❤️ by the Sweetify Team.</span>
         </div>
       </footer>
     </div>
