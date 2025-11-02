@@ -117,20 +117,22 @@ export default function AdminPanel({ user }) {
   }, [sweets, debouncedQuery, sortBy]);
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8 bg-gradient-to-b from-pink-50 via-yellow-50 to-white min-h-screen rounded-lg">
+    <main className="relative max-w-6xl mx-auto px-4 py-8 bg-gradient-to-b from-pink-50 via-yellow-50 to-white min-h-screen rounded-lg">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-pink-600">🍭 Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold text-pink-600 flex items-center gap-2">
+            🍭 Admin Dashboard
+          </h1>
           <p className="text-sm text-brown-600 mt-1">
             Manage sweets, stock, and keep Sweetify’s treats always fresh!
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => setAddOpen(true)}
-            className="hidden sm:inline-flex items-center px-4 py-2 bg-pink-400 text-white rounded-md shadow hover:bg-pink-500 transition"
+            className="px-4 py-2 bg-pink-500 text-white rounded-md shadow hover:bg-pink-600 transition"
           >
             + Add Sweet
           </button>
@@ -232,6 +234,16 @@ export default function AdminPanel({ user }) {
           </tbody>
         </table>
       </div>
+
+      {/* Floating Add Button for Mobile */}
+      <button
+        onClick={() => setAddOpen(true)}
+        className="fixed bottom-4 right-4 z-50 md:hidden flex items-center justify-center w-14 h-14 rounded-full shadow-lg bg-pink-500 text-white hover:bg-pink-600 transition"
+        title="Add Sweet"
+        aria-label="Add Sweet"
+      >
+        +
+      </button>
 
       {/* Modals */}
       {addOpen && (
