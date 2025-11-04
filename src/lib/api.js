@@ -16,7 +16,7 @@ const DEBUG_REQUESTS = false;
 
 const API = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:5001/api",
-  timeout: 10000,
+  timeout: 20000,
 });
 
 // REQUEST INTERCEPTOR
